@@ -259,26 +259,55 @@ A module must:
 
 The first implementation does not need general lifecycle hooks, dependency graphs, priorities, or third-party module discovery.
 
-## PATH Contract
+## PATH and Platform Contract
 
-`core/path.sh` provides:
+The full WSL/Windows/WezTerm design is recorded in `docs/WSL_WIN11_WEZTERM_PATH.md`.
+
+`core/platform.sh` detects WSL and terminal context with Bash builtins. It does not require `WSL_DISTRO_NAME` or `WSL_INTEROP`, because agent and service environments may sanitize those variables.
+
+`core/path.sh` provides literal parsing, classification, normalization, policy composition, and read-only audit primitives. Initial public behavior includes:
 
 ```text
-dood_path_prepend PATH
-dood_path_append PATH
-dood_path_remove PATH
-dood_path_contains PATH
-dood_path_normalize
+dood_path_split STRING
+dood_path_join
+dood_path_classify ENTRY
+dood_path_normalize STRING
+dood_path_compose preserve|curated|linux-only INHERITED ALLOWLIST
+dood_path_apply STRING
+dood_path_audit STRING
 ```
 
 Rules:
 
+- Linux development, KoadOS, and Crew paths precede Windows interoperability paths.
 - Preserve first occurrence when normalizing.
+- Remove empty entries before applying a composed PATH.
+- Compare Linux paths case-sensitively.
+- Compare `/mnt/<drive>` paths case-insensitively while preserving first spelling.
+- Do not use raw path strings as associative-array subscripts.
 - Ignore empty additions.
-- Do not require a path to exist unless the caller requests that check.
-- Treat path strings literally.
+- Do not require a path to exist during composition.
 - Do not invoke external utilities during normal startup.
-- Export `PATH` only after composition is complete.
+- Do not edit `/etc/wsl.conf`, `.wslconfig`, or `.wezterm.lua`.
+- Export PATH only after explicit composition is complete.
+- Start rollout with `preserve`; admit `curated` as Jupiter's default only after disposable and live canary verification.
+- Keep Windows 11 tools in a host-specific allowlist at the tail of PATH.
+- Detect WezTerm through environment metadata but never invoke it during startup.
+
+The fixed bootstrap sequence becomes:
+
+```text
+core/platform.sh
+core/path.sh
+core/config.sh
+configuration layers
+PATH policy composition
+core/module.sh
+explicit enabled modules
+completion setup
+```
+
+Explicit `dood win` commands may use `wslpath` or Windows executables at command time. Startup PATH composition may not.
 
 ## Command Dispatcher
 

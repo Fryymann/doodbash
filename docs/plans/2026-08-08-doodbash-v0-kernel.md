@@ -111,27 +111,35 @@ dood_config_load_layers ROOT
 
 The test supplies temporary root and XDG paths; it does not depend on the live hostname.
 
-## Task 4: PATH helpers
+## Task 4: WSL-aware PATH foundation
 
-**Objective:** Compose PATH deterministically without external processes.
+**Objective:** Compose PATH deterministically for Jupiter's Linux-native agentic-development environment while retaining curated Windows 11 and WezTerm interoperability.
+
+**Plan:** Execute `docs/plans/2026-08-08-wsl-path-foundation.md` before interactive bootstrap work.
 
 **Files:**
 
 - Create test first: `tests/test-path.sh`
+- Create after RED: `core/platform.sh`
 - Create after RED: `core/path.sh`
+- Create after RED: `config/hosts/jupiter.windows-paths`
+- Reference: `docs/WSL_WIN11_WEZTERM_PATH.md`
 
-**TDD slices:**
+**Required outcomes:**
 
-1. `dood_path_contains` finds exact path entries.
-2. `dood_path_prepend` does not duplicate an existing entry.
-3. `dood_path_append` does not duplicate an existing entry.
-4. `dood_path_remove` removes all exact duplicates.
-5. `dood_path_normalize` preserves first occurrence and removes empty entries.
+1. Detect WSL without requiring WSL environment variables or startup subprocesses.
+2. Keep Linux, KoadOS, and Crew paths ahead of Windows interoperability paths.
+3. Support `preserve`, `curated`, and `linux-only` policies.
+4. Treat PATH entries literally, including spaces and hostile shell text.
+5. Avoid raw PATH strings as associative-array keys.
+6. Detect duplicates, empty/relative entries, and Linux/Windows tool collisions.
+7. Detect WezTerm without invoking it during startup.
+8. Pass disposable and Jupiter canaries before changing any live default.
 
 Run after each slice:
 
 ```bash
-tests/test-path.sh
+bash tests/test-path.sh
 tests/run
 ```
 
@@ -278,4 +286,4 @@ feat: add read-only doctor command
 docs: document isolated v0 kernel
 ```
 
-No push or remote creation is part of this plan.
+Remote creation remains outside this implementation plan. The configured `origin` may receive verified commits when explicitly requested.
