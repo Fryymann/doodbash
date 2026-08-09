@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+shopt -s nullglob
+files=("$ROOT"/tests/test-*.sh)
+
+if (( ${#files[@]} == 0 )); then
+  printf 'DoodBash: no test files yet\n'
+  exit 0
+fi
+
+failures=0
+for test_file in "${files[@]}"; do
+  printf '# %s\n' "${test_file##*/}"
+  bash "$test_file" || failures=$((failures + 1))
+done
+
+if (( failures > 0 )); then
+  printf 'DoodBash: %d test file(s) failed\n' "$failures" >&2
+  exit 1
+fi
+
+printf 'DoodBash: %d test file(s) passed\n' "${#files[@]}"

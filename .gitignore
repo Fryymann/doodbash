@@ -1,0 +1,7 @@
+# DoodBash local and generated state
+.config/
+.cache/
+.state/
+*.tmp
+*.log
+coverage/
