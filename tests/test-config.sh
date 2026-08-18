@@ -144,4 +144,145 @@ unreadable_file_load_fails_atomically() {
 }
 
 run_test 'unreadable configuration file fails atomically' unreadable_file_load_fails_atomically
+comments_and_blank_lines_are_ignored() {
+  # shellcheck source=/dev/null
+  source "$ROOT/core/config.sh"
+  new_test_tmpdir || return 1
+  local tmp="$REPLY" config="$REPLY/comments.conf"
+  {
+    printf '# leading comment\n'
+    printf '\n'
+    printf 'DOOD_COLOR=auto\n'
+    printf '#DOOD_EDITOR=nvim\n'
+    printf '\n'
+    printf 'DOOD_PROFILE=personal\n'
+  } >"$config"
+
+  dood_config_reset
+  dood_config_load_file "$config" required || return 1
+
+  assert_eq auto "$(dood_config_get DOOD_COLOR)" 'record after ignored lines is loaded' || return 1
+  assert_eq "$config:3" "$(dood_config_source DOOD_COLOR)" 'ignored lines still advance the line counter' || return 1
+  if dood_config_has DOOD_EDITOR; then
+    fail 'commented record was loaded'
+    return 1
+  fi
+  assert_eq "$config:6" "$(dood_config_source DOOD_PROFILE)" 'provenance stays accurate after ignored lines'
+}
+
+run_test 'comment and blank lines are ignored' comments_and_blank_lines_are_ignored
+
+values_keep_everything_after_the_first_equals() {
+  # shellcheck source=/dev/null
+  source "$ROOT/core/config.sh"
+  new_test_tmpdir || return 1
+  local tmp="$REPLY" config="$REPLY/values.conf"
+  {
+    printf 'DOOD_QUERY=a=b=c\n'
+    printf 'DOOD_EMPTY=\n'
+    printf 'DOOD_SPACED=two words\n'
+  } >"$config"
+
+  dood_config_reset
+  dood_config_load_file "$config" required || return 1
+
+  assert_eq 'a=b=c' "$(dood_config_get DOOD_QUERY)" 'additional equals characters stay in the value' || return 1
+  assert_eq '' "$(dood_config_get DOOD_EMPTY MISSING)" 'an empty value is a set value, not a default' || return 1
+  assert_eq 'two words' "$(dood_config_get DOOD_SPACED)" 'unquoted spaces stay in the value'
+}
+
+run_test 'values keep everything after the first equals' values_keep_everything_after_the_first_equals
+
+crlf_line_endings_are_tolerated() {
+  # shellcheck source=/dev/null
+  source "$ROOT/core/config.sh"
+  new_test_tmpdir || return 1
+  local tmp="$REPLY" config="$REPLY/crlf.conf"
+  printf 'DOOD_COLOR=auto\r\nDOOD_PROFILE=personal\r\n' >"$config"
+
+  dood_config_reset
+  dood_config_load_file "$config" required || return 1
+
+  assert_eq auto "$(dood_config_get DOOD_COLOR)" 'trailing carriage return is removed from the value' || return 1
+  assert_eq personal "$(dood_config_get DOOD_PROFILE)" 'every CRLF record is tolerated'
+}
+
+run_test 'CRLF line endings are tolerated' crlf_line_endings_are_tolerated
+
+a_missing_file_obeys_its_requirement_mode() {
+  # shellcheck source=/dev/null
+  source "$ROOT/core/config.sh"
+  new_test_tmpdir || return 1
+  local tmp="$REPLY" config="$REPLY/absent.conf" output
+
+  dood_config_reset
+  if ! dood_config_load_file "$config" optional; then
+    fail 'a missing optional file was not accepted'
+    return 1
+  fi
+
+  if output="$(dood_config_load_file "$config" required 2>&1)"; then
+    fail 'a missing required file was accepted'
+    return 1
+  fi
+  assert_contains "$output" "$config" 'a missing required file names the path' || return 1
+
+  if dood_config_load_file "$config" >/dev/null 2>&1; then
+    fail 'the default requirement mode accepted a missing file'
+    return 1
+  fi
+}
+
+run_test 'a missing file obeys its requirement mode' a_missing_file_obeys_its_requirement_mode
+
+a_later_file_overrides_an_earlier_value() {
+  # shellcheck source=/dev/null
+  source "$ROOT/core/config.sh"
+  new_test_tmpdir || return 1
+  local tmp="$REPLY" base="$REPLY/base.conf" over="$REPLY/over.conf"
+  {
+    printf 'DOOD_COLOR=auto\n'
+    printf 'DOOD_EDITOR=nvim\n'
+  } >"$base"
+  printf 'DOOD_COLOR=never\n' >"$over"
+
+  dood_config_reset
+  dood_config_load_file "$base" required || return 1
+  dood_config_load_file "$over" required || return 1
+
+  assert_eq never "$(dood_config_get DOOD_COLOR)" 'the later file wins the value' || return 1
+  assert_eq "$over:1" "$(dood_config_source DOOD_COLOR)" 'the later file wins the provenance' || return 1
+  assert_eq nvim "$(dood_config_get DOOD_EDITOR)" 'a key the later file omits keeps its value' || return 1
+  assert_eq "$base:2" "$(dood_config_source DOOD_EDITOR)" 'a key the later file omits keeps its provenance'
+}
+
+run_test 'a later file overrides an earlier value' a_later_file_overrides_an_earlier_value
+
+the_shipped_defaults_file_loads_as_a_required_layer() {
+  # shellcheck source=/dev/null
+  source "$ROOT/core/config.sh"
+  local defaults="$ROOT/config/defaults.conf"
+
+  if [[ ! -f "$defaults" ]]; then
+    fail 'config/defaults.conf is shipped'
+    return 1
+  fi
+
+  dood_config_reset
+  dood_config_load_file "$defaults" required || return 1
+
+  assert_eq auto "$(dood_config_get DOOD_COLOR)" 'defaults supply the color policy' || return 1
+  assert_contains "$(dood_config_source DOOD_COLOR)" "$defaults:" 'defaults provenance names the shipped file' || return 1
+
+  local selector
+  for selector in DOOD_PROFILE DOOD_HOST_OVERRIDE; do
+    if dood_config_has "$selector"; then
+      fail "defaults must not set the selection input $selector"
+      return 1
+    fi
+  done
+}
+
+run_test 'the shipped defaults file loads as a required layer' the_shipped_defaults_file_loads_as_a_required_layer
+
 finish_tests
