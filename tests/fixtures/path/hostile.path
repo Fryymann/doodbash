@@ -1,0 +1,4 @@
+/tmp/$(touch SHOULD_NOT_EXIST)
+/tmp/`touch SHOULD_NOT_EXIST_BACKTICK`
+/tmp/one; touch SHOULD_NOT_EXIST_SEMI
+/tmp/a b c
